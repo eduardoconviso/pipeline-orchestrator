@@ -1,0 +1,64 @@
+name: Conviso AST Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_run_id:
+        description: 'Scan Run ID'
+        required: true
+      api_url:
+        description: 'Conviso Platform API URL'
+        required: true
+        default: 'https://app.convisoappsec.com'
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Fetch Scan Plan
+        id: plan
+        run: |
+          # Fetch plan from Conviso Platform
+          # Using curl or specific action
+          
+          # Example response: { repos: [{ fullName: "org/repo1" }, { fullName: "org/repo2" }], batching: { ... } }
+          
+          # This should query /api/ast/scan-runs/:id/repos (GraphQL now)
+          # For MVP, we'll demonstrate the concept.
+          
+          echo "Fetching plan for Scan Run ${{ inputs.scan_run_id }}"
+          
+          # In a real implementation, this script would:
+          # 1. Auth with Conviso API (using secret CONVISO_API_KEY)
+          # 2. Query 'astScanRunRepos' GraphQL query
+          # 3. Output a JSON matrix for key 'repos'
+          
+          # Dummy output for testing
+          echo "matrix={\"repo\":[\"dummy-repo-1\", \"dummy-repo-2\"]}" >> $GITHUB_OUTPUT
+
+  scan:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Checkout Target Repo
+        uses: actions/checkout@5
+        with:
+          repository: ${{ matrix.repo }}
+          token: ${{ secrets.GH_PAT_OR_APP_TOKEN }}
+          
+      - name: Run Scan
+        run: |
+          echo "Scanning ${{ matrix.repo }}..."
+          # Run AST tool here
+          
+      - name: Upload Results
+        if: always()
+        run: |
+          echo "Uploading results for ${{ matrix.repo }}..."
+          # Call Conviso GraphQL mutation 'uploadAstScanRunRepoResults'
+          # Call Conviso GraphQL mutation 'updateAstScanRunRepoStatus'
