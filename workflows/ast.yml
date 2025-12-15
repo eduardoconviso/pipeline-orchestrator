@@ -15,50 +15,74 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
+      matrix: ${{ steps.fetch-plan.outputs.matrix }}
     steps:
       - name: Fetch Scan Plan
-        id: plan
+        id: fetch-plan
         run: |
-          # Fetch plan from Conviso Platform
-          # Using curl or specific action
+          echo "Fetching plan for Scan Run ${{ inputs.scan_run_id }}..."
           
-          # Example response: { repos: [{ fullName: "org/repo1" }, { fullName: "org/repo2" }], batching: { ... } }
+          # API Endpoint
+          ENDPOINT="${{ inputs.api_url }}/graphql"
           
-          # This should query /api/ast/scan-runs/:id/repos (GraphQL now)
-          # For MVP, we'll demonstrate the concept.
+          # Construct GraphQL Query
+          # We fetch list of repos for this scan run
+          QUERY='{"query": "query($scanRunId: ID!) { astScanRunRepos(scanRunId: $scanRunId) { repos { repoFullName } } }", "variables": {"scanRunId": "${{ inputs.scan_run_id }}"}}'
           
-          echo "Fetching plan for Scan Run ${{ inputs.scan_run_id }}"
+          # Execute Request
+          # Uses x-api-key header for authentication
+          RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.CONVISO_API_KEY }}" \
+            -d "$QUERY" \
+            "$ENDPOINT")
           
-          # In a real implementation, this script would:
-          # 1. Auth with Conviso API (using secret CONVISO_API_KEY)
-          # 2. Query 'astScanRunRepos' GraphQL query
-          # 3. Output a JSON matrix for key 'repos'
+          # Check for errors in response
+          if echo "$RESPONSE" | grep -q "errors"; then
+            echo "Error fetching plan: $RESPONSE"
+            exit 1
+          fi
+
+          # Extract Repositories into JSON Array for Matrix
+          # Expected format: ["org/repo1", "org/repo2"]
+          REPOS=$(echo "$RESPONSE" | jq -c '[.data.astScanRunRepos.repos[].repoFullName]')
           
-          # Dummy output for testing
-          echo "matrix={\"repo\":[\"dummy-repo-1\", \"dummy-repo-2\"]}" >> $GITHUB_OUTPUT
+          # Handle empty list
+          if [ "$REPOS" == "[]" ]; then
+             echo "No repositories found for this scan run."
+             echo "matrix={\"repo\":[]}" >> $GITHUB_OUTPUT
+             exit 0
+          fi
+
+          echo "Found repositories: $REPOS"
+          
+          # Set Output for Matrix
+          # Format: {"repo": ["a", "b"]}
+          echo "matrix={\"repo\": $REPOS}" >> $GITHUB_OUTPUT
 
   scan:
     needs: plan
     runs-on: ubuntu-latest
+    if: needs.plan.outputs.matrix != '{"repo":[]}' && needs.plan.outputs.matrix != ''
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - name: Checkout Target Repo
-        uses: actions/checkout@5
+        uses: actions/checkout@v3
         with:
           repository: ${{ matrix.repo }}
-          token: ${{ secrets.GH_PAT_OR_APP_TOKEN }}
+          # You might need a PAT or App Token if the default GITHUB_TOKEN doesn't have access
+          # token: ${{ secrets.GH_PAT }} 
           
       - name: Run Scan
         run: |
           echo "Scanning ${{ matrix.repo }}..."
-          # Run AST tool here
           
-      - name: Upload Results
-        if: always()
-        run: |
-          echo "Uploading results for ${{ matrix.repo }}..."
-          # Call Conviso GraphQL mutation 'uploadAstScanRunRepoResults'
-          # Call Conviso GraphQL mutation 'updateAstScanRunRepoStatus'
+          # HERE: Run your security tool.
+          # The tool is expected to handle result upload to Conviso Platform.
+          # You might need to pass the scan_run_id and api_key to the tool.
+          
+          # Example:
+          # ./conviso-cli run --scan-run-id ${{ inputs.scan_run_id }} --key ${{ secrets.CONVISO_API_KEY }}
+
