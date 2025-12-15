@@ -9,7 +9,7 @@ on:
       api_url:
         description: 'Conviso Platform API URL'
         required: true
-        default: 'https://app.convisoappsec.com'
+        default: 'https://eduardo.share.zrok.io'
 
 jobs:
   plan:
