@@ -1,87 +1,55 @@
-name: Conviso AST Orchestrator
+name: AST Scan Orchestrator
 
 on:
   workflow_dispatch:
     inputs:
-      scan_run_id:
-        description: 'Scan Run ID'
+      repo_full_name:
+        description: 'Repository to scan (owner/repo)'
         required: true
+        type: string
+      branch:
+        description: 'Branch that was merged'
+        required: true
+        type: string
+      commit_sha:
+        description: 'Merge commit SHA'
+        required: true
+        type: string
+      pr_number:
+        description: 'Pull request number'
+        required: true
+        type: string
       api_url:
         description: 'Conviso Platform API URL'
-        required: true
-        default: 'https://eduardo.share.zrok.io'
+        required: false
+        type: string
+        default: 'https://app.convisoappsec.com'
 
 jobs:
-  plan:
+  run-ast-scan:
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.fetch-plan.outputs.matrix }}
     steps:
-      - name: Fetch Scan Plan
-        id: fetch-plan
-        run: |
-          echo "Fetching plan for Scan Run ${{ inputs.scan_run_id }}..."
-          
-          # API Endpoint
-          ENDPOINT="${{ inputs.api_url }}/graphql"
-          
-          # Construct GraphQL Query
-          # We fetch list of repos for this scan run
-          QUERY='{"query": "query($scanRunId: ID!) { astScanRunRepos(scanRunId: $scanRunId) { repos { repoFullName } } }", "variables": {"scanRunId": "${{ inputs.scan_run_id }}"}}'
-          
-          # Execute Request
-          # Uses x-api-key header for authentication
-          RESPONSE=$(curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.CONVISO_API_KEY }}" \
-            -d "$QUERY" \
-            "$ENDPOINT")
-          
-          # Check for errors in response
-          if echo "$RESPONSE" | grep -q "errors"; then
-            echo "Error fetching plan: $RESPONSE"
-            exit 1
-          fi
-
-          # Extract Repositories into JSON Array for Matrix
-          # Expected format: ["org/repo1", "org/repo2"]
-          REPOS=$(echo "$RESPONSE" | jq -c '[.data.astScanRunRepos.repos[].repoFullName]')
-          
-          # Handle empty list
-          if [ "$REPOS" == "[]" ]; then
-             echo "No repositories found for this scan run."
-             echo "matrix={\"repo\":[]}" >> $GITHUB_OUTPUT
-             exit 0
-          fi
-
-          echo "Found repositories: $REPOS"
-          
-          # Set Output for Matrix
-          # Format: {"repo": ["a", "b"]}
-          echo "matrix={\"repo\": $REPOS}" >> $GITHUB_OUTPUT
-
-  scan:
-    needs: plan
-    runs-on: ubuntu-latest
-    if: needs.plan.outputs.matrix != '{"repo":[]}' && needs.plan.outputs.matrix != ''
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
-    steps:
-      - name: Checkout Target Repo
-        uses: actions/checkout@v3
+      - name: Checkout target repository
+        uses: actions/checkout@v4
         with:
-          repository: ${{ matrix.repo }}
-          # You might need a PAT or App Token if the default GITHUB_TOKEN doesn't have access
-          # token: ${{ secrets.GH_PAT }} 
+          repository: ${{ inputs.repo_full_name }}
+          ref: ${{ inputs.branch }}
           
-      - name: Run Scan
+      - name: Run Conviso AST
         run: |
-          echo "Scanning ${{ matrix.repo }}..."
+          echo "Running AST scan for ${{ inputs.repo_full_name }}"
+          echo "Branch: ${{ inputs.branch }}"
+          echo "Commit: ${{ inputs.commit_sha }}"
+          echo "PR: ${{ inputs.pr_number }}"
           
-          # HERE: Run your security tool.
-          # The tool is expected to handle result upload to Conviso Platform.
-          # You might need to pass the scan_run_id and api_key to the tool.
+          # Install Conviso CLI (adjust based on your setup)
+          # curl -sSL https://cli.convisoappsec.com/install.sh | bash
           
-          # Example:
-          # ./conviso-cli run --scan-run-id ${{ inputs.scan_run_id }} --key ${{ secrets.CONVISO_API_KEY }}
+          # Run the scan
+          # conviso ast run --vulnerability-auto-close
+          
+      - name: Report results
+        if: always()
+        run: |
+          echo "Scan completed for PR #${{ inputs.pr_number }}"
+          # Add logic to report back to Conviso Platform if needed
