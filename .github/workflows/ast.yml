@@ -28,9 +28,9 @@ on:
 jobs:
   run-ast-scan:
     runs-on: ubuntu-latest
-    # We use the official Docker image as the execution environment for this job
     container:
-      image: convisoappsec/conviso-cli
+      # Corrected image name from the Docker Hub link you provided
+      image: convisoappsec/convisocli:latest
       env:
         CONVISO_API_KEY: ${{ secrets.CONVISO_API_KEY }}
         CONVISO_PLATFORM_URL: ${{ inputs.api_url }}
@@ -46,9 +46,7 @@ jobs:
       - name: Run Conviso AST Scan
         run: |
           echo "Starting AST scan for ${{ inputs.repo_full_name }}"
-          
-          # The CLI is already installed in this image. 
-          # We run the AST scan without security gate enforcement.
+          # Running AST scan without security gate enforcement (non-blocking)
           conviso ast run --vulnerability-auto-close
 
       - name: Report results
