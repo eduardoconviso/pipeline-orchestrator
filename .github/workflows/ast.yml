@@ -28,28 +28,30 @@ on:
 jobs:
   run-ast-scan:
     runs-on: ubuntu-latest
+    # We use the official Docker image as the execution environment for this job
+    container:
+      image: convisoappsec/conviso-cli
+      env:
+        CONVISO_API_KEY: ${{ secrets.CONVISO_API_KEY }}
+        CONVISO_PLATFORM_URL: ${{ inputs.api_url }}
+
     steps:
       - name: Checkout target repository
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repo_full_name }}
           ref: ${{ inputs.branch }}
-          
-      - name: Run Conviso AST
+          fetch-depth: 0
+
+      - name: Run Conviso AST Scan
         run: |
-          echo "Running AST scan for ${{ inputs.repo_full_name }}"
-          echo "Branch: ${{ inputs.branch }}"
-          echo "Commit: ${{ inputs.commit_sha }}"
-          echo "PR: ${{ inputs.pr_number }}"
+          echo "Starting AST scan for ${{ inputs.repo_full_name }}"
           
-          # Install Conviso CLI (adjust based on your setup)
-          # curl -sSL https://cli.convisoappsec.com/install.sh | bash
-          
-          # Run the scan
-          # conviso ast run --vulnerability-auto-close
-          
+          # The CLI is already installed in this image. 
+          # We run the AST scan without security gate enforcement.
+          conviso ast run --vulnerability-auto-close
+
       - name: Report results
         if: always()
         run: |
-          echo "Scan completed for PR #${{ inputs.pr_number }}"
-          # Add logic to report back to Conviso Platform if needed
+          echo "Scan process finished for PR #${{ inputs.pr_number }}"
