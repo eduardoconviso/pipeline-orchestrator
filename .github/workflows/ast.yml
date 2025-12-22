@@ -47,7 +47,7 @@ jobs:
         run: |
           echo "Starting AST scan for ${{ inputs.repo_full_name }}"
           # Running AST scan without security gate enforcement (non-blocking)
-          conviso --company-id 520 ast run --vulnerability-auto-close
+          conviso ast run --vulnerability-auto-close --company-id 520
 
       - name: Report results
         if: always()
